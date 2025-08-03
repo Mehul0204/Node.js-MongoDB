@@ -1,6 +1,9 @@
 const chai = require('chai');
 const chaiHttp = require('chai-http');
-const app = require('../server');
+const path = require('path');
+
+// Adjust the path to server.js based on your actual structure
+const app = require(path.join(__dirname, '../server'));
 
 chai.use(chaiHttp);
 const expect = chai.expect;
