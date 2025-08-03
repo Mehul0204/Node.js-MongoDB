@@ -1,0 +1,17 @@
+{
+  "extends": "airbnb-base",
+  "rules": {
+    "no-console": "off",
+    "comma-dangle": "off",
+    "no-trailing-spaces": "off",
+    "eol-last": "off",
+    "import/extensions": "off",
+    "import/newline-after-import": "off",
+    "arrow-parens": "off",
+    "no-unused-vars": ["error", { "argsIgnorePattern": "next|_" }]
+  },
+  "env": {
+    "node": true,
+    "jest": true
+  }
+}

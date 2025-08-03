@@ -1,0 +1,9 @@
+extends layout
+
+block content
+  .alert.alert-danger.mt-4
+    h1.alert-heading= message
+    h2= error.status
+    if error.stack && env === 'development'
+      hr
+      pre.mb-0= error.stack
