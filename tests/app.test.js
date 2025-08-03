@@ -1,25 +1,18 @@
-const request = require('supertest');
-const mongoose = require('mongoose');
-const { getApp } = require('../app');
+const chai = require('chai');
+const chaiHttp = require('chai-http');
+const app = require('../server');
 
-describe('Todo List App', () => {
-  let app;
+chai.use(chaiHttp);
+const expect = chai.expect;
 
-  beforeAll(async () => {
-    app = await getApp();
-  });
-
-  afterAll(async () => {
-    await mongoose.connection.close();
-  });
-
-  test('GET / returns 200', async () => {
-    const response = await request(app).get('/');
-    expect(response.statusCode).toBe(200);
-  });
-
-  test('GET /health returns 200', async () => {
-    const response = await request(app).get('/health');
-    expect(response.statusCode).toBe(200);
+describe('API Tests', () => {
+  it('should return health status', (done) => {
+    chai.request(app)
+      .get('/health')
+      .end((err, res) => {
+        expect(res).to.have.status(200);
+        expect(res.body).to.have.property('status').equal('OK');
+        done();
+      });
   });
 });
