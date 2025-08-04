@@ -1,65 +1,44 @@
 pipeline {
-    agent {
-        label 'windows' // Uses Windows agent
-    }
+    agent any
 
     environment {
-        // Load credentials from Jenkins
-        MONGODB_URI = credentials('mongodb-uri')
-        NODEJS_HOME = "${tool 'NodeJS_18'}" // Make sure NodeJS 18+ is installed in Jenkins
+        RESOURCE_GROUP = 'nodejs-mongodb-rg-tf'
+        WEB_APP_NAME = 'nodejs-mongodb-app-tf-ea635ff7'
     }
 
     stages {
-        stage('Checkout') {
+        stage('Deploy via Local Git') {
             steps {
-                git branch: 'main', 
-                url: 'https://github.com/Mehul0204/Node.js-MongoDB.git' // Replace with your repo
-            }
-        }
+                script {
+                    // Set up deployment credentials if not already done
+                    bat """
+                        az webapp deployment user set ^
+                        --user-name "azureuser" ^
+                        --password "YourSecurePassword123!"
+                    """
 
-        stage('Install') {
-            steps {
-                bat '''
-                    npm install
-                    npm install -g nodemon
-                '''
-            }
-        }
+                    // Configure local git deployment
+                    bat """
+                        az webapp deployment source config-local-git ^
+                        --name %WEB_APP_NAME% ^
+                        --resource-group %RESOURCE_GROUP% ^
+                        --query url ^
+                        --output tsv
+                    """
 
-        stage('Build') {
-            steps {
-                bat 'npm run build'
-            }
-        }
+                    // Get the git remote URL
+                    def gitRemoteUrl = bat(
+                        script: "az webapp deployment source config-local-git --name %WEB_APP_NAME% --resource-group %RESOURCE_GROUP% --query url --output tsv",
+                        returnStdout: true
+                    ).trim()
 
-        stage('Test') {
-            steps {
-                bat 'npm test'
+                    // Push to Azure (would typically be in a different pipeline)
+                    bat """
+                        git remote add azure %gitRemoteUrl%
+                        git push azure master
+                    """
+                }
             }
-        }
-
-        stage('Deploy') {
-            when {
-                branch 'master' 
-            }
-            steps {
-                bat '''
-                    set PORT=8080
-                    start /B nodemon ./bin/www
-                '''
-            }
-        }
-    }
-
-    post {
-        always {
-            bat 'taskkill /F /IM node.exe /T' // Cleanup Node processes
-        }
-        success {
-            slackSend color: 'good', message: "Build ${BUILD_NUMBER} succeeded"
-        }
-        failure {
-            slackSend color: 'danger', message: "Build ${BUILD_NUMBER} failed"
         }
     }
 }
