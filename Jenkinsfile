@@ -6,7 +6,7 @@ pipeline {
     environment {
         RESOURCE_GROUP = 'nodejs-mongodb-rg-tf'
         WEB_APP_NAME = 'nodejs-mongodb-app-tf-ea635ff7'
-        GIT_BRANCH = 'main' // Change to 'master' if needed
+        GIT_BRANCH = 'master' // Change to 'master' if needed
     }
 
     stages {
