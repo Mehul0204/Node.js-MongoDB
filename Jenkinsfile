@@ -1,41 +1,45 @@
 pipeline {
-    agent any
+    agent {
+        label 'windows'
+    }
 
     environment {
         RESOURCE_GROUP = 'nodejs-mongodb-rg-tf'
         WEB_APP_NAME = 'nodejs-mongodb-app-tf-ea635ff7'
+        GIT_BRANCH = 'master' // Change to 'master' if that's your branch name
     }
 
     stages {
-        stage('Deploy via Local Git') {
+        stage('Prepare Git Deployment') {
             steps {
                 script {
-                    // Set up deployment credentials if not already done
-                    bat """
-                        az webapp deployment user set ^
-                        --user-name "Mehul24" ^
-                        --password "YourSecurePassword123!"
-                    """
-
-                    // Configure local git deployment
-                    bat """
-                        az webapp deployment source config-local-git ^
-                        --name %WEB_APP_NAME% ^
-                        --resource-group %RESOURCE_GROUP% ^
-                        --query url ^
-                        --output tsv
-                    """
-
-                    // Get the git remote URL
+                    // Get the Azure Git remote URL
                     def gitRemoteUrl = bat(
                         script: "az webapp deployment source config-local-git --name %WEB_APP_NAME% --resource-group %RESOURCE_GROUP% --query url --output tsv",
                         returnStdout: true
                     ).trim()
+                    
+                    // Store the URL for later use
+                    env.AZURE_GIT_REMOTE = gitRemoteUrl
+                }
+            }
+        }
 
-                    // Push to Azure (would typically be in a different pipeline)
+        stage('Deploy via Git') {
+            steps {
+                script {
+                    // Configure git identity (required for Jenkins)
                     bat """
-                        git remote add azure %gitRemoteUrl%
-                        git push azure master
+                        git config --global user.email "jenkins@example.com"
+                        git config --global user.name "Jenkins"
+                    """
+                    
+                    // Add Azure remote (properly formatted command)
+                    bat "git remote add azure %AZURE_GIT_REMOTE%"
+                    
+                    // Push to Azure (using the correct branch name)
+                    bat """
+                        git push azure %GIT_BRANCH%:master --force
                     """
                 }
             }
