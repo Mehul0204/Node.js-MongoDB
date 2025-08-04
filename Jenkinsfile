@@ -9,16 +9,21 @@ pipeline {
     }
 
     stages {
-        stage('Prepare Environment') {
-            steps {
-                bat 'git --version'
-                bat 'az --version'
-            }
-        }
-
-        stage('Get Azure Git URL') {
+        stage('Initialize') {
             steps {
                 script {
+                    // Verify tools
+                    bat 'git --version'
+                    bat 'az --version'
+                    
+                    // Get current branch (works for detached HEAD too)
+                    env.GIT_BRANCH = bat(
+                        script: '@git rev-parse --abbrev-ref HEAD || echo "main"',
+                        returnStdout: true
+                    ).trim()
+                    echo "Using branch: ${env.GIT_BRANCH}"
+                    
+                    // Get Azure remote URL
                     env.AZURE_GIT_REMOTE = bat(
                         script: """
                             @echo off
@@ -30,53 +35,66 @@ pipeline {
                         """,
                         returnStdout: true
                     ).trim()
-                    echo "Azure Remote URL: ${env.AZURE_GIT_REMOTE}"
                 }
             }
         }
 
-        stage('Configure Git') {
+        stage('Prepare Repository') {
             steps {
                 script {
-                    // Set git identity
+                    // Configure git
                     bat """
                         git config --global user.email "jenkins@example.com"
                         git config --global user.name "Jenkins"
                     """
                     
-                    // Get current branch name
-                    env.GIT_BRANCH = bat(
-                        script: '@git branch --show-current',
-                        returnStdout: true
-                    ).trim()
-                    echo "Detected branch: ${env.GIT_BRANCH}"
-                    
-                    // Smart remote handling
+                    // Ensure we have a local branch
                     bat """
                         @echo off
-                        git remote add azure "%AZURE_GIT_REMOTE%" 2>nul || (
-                            echo "Updating existing azure remote URL"
-                            git remote set-url azure "%AZURE_GIT_REMOTE%"
+                        git checkout -B ${env.GIT_BRANCH} 2>nul || (
+                            echo "Creating new branch ${env.GIT_BRANCH}"
+                            git checkout --orphan ${env.GIT_BRANCH}
+                            git commit --allow-empty -m "Initial commit"
                         )
                     """
                     
-                    // Verify configuration
-                    bat 'git remote -v'
-                    bat 'git log -1'
+                    // Configure remote
+                    bat """
+                        @echo off
+                        git remote remove azure 2>nul
+                        git remote add azure "%AZURE_GIT_REMOTE%"
+                    """
                 }
             }
         }
 
-        stage('Deploy to Azure') {
+        stage('Deploy') {
             steps {
                 script {
+                    // Ensure there's content to push
                     bat """
                         @echo off
+                        if not exist * (
+                            echo "No files detected - creating empty commit"
+                            git commit --allow-empty -m "Initial deployment [skip ci]"
+                        )
+                    """
+                    
+                    // Push with retry logic
+                    bat """
+                        @echo off
+                        set RETRY=0
+                        :push_retry
                         git push azure %GIT_BRANCH%:master --force
                         if %ERRORLEVEL% neq 0 (
-                            echo "Initial push failed - creating empty commit"
-                            git commit --allow-empty -m "Initial deployment commit [skip ci]"
-                            git push azure %GIT_BRANCH%:master --force
+                            set /a RETRY+=1
+                            if %RETRY% leq 2 (
+                                echo "Push failed, retrying in 5 seconds..."
+                                timeout /t 5
+                                goto push_retry
+                            ) else (
+                                exit 1
+                            )
                         )
                     """
                 }
@@ -86,19 +104,20 @@ pipeline {
 
     post {
         always {
-            echo "Deployment pipeline completed"
-            bat 'git remote -v'
+            echo "Deployment process completed"
             bat 'git log -1 --oneline'
+            bat 'git remote -v'
         }
         failure {
             echo """
-            DEPLOYMENT FAILED! Check:
-            1. Branch: ${env.GIT_BRANCH} -> master
+            DEPLOYMENT FAILURE ANALYSIS:
+            1. Branch: ${env.GIT_BRANCH} (local) → master (Azure)
             2. Remote: ${env.AZURE_GIT_REMOTE}
-            3. Azure permissions (az account show)
-            4. Workspace cleanliness
+            3. Verify Azure permissions with: az account show
+            4. Workspace contents: dir
             """
             bat 'az account show'
+            bat 'dir'
         }
     }
 }
