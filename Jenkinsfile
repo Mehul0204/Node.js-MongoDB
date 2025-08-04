@@ -13,7 +13,7 @@ pipeline {
                     // Set up deployment credentials if not already done
                     bat """
                         az webapp deployment user set ^
-                        --user-name "azureuser" ^
+                        --user-name "Mehul24" ^
                         --password "YourSecurePassword123!"
                     """
 
