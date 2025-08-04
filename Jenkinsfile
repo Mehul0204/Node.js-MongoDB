@@ -10,13 +10,6 @@ pipeline {
     }
 
     stages {
-        stage('Prepare Environment') {
-            steps {
-                bat 'git --version'
-                bat 'az --version'
-            }
-        }
-
         stage('Get Azure Git URL') {
             steps {
                 script {
@@ -39,20 +32,18 @@ pipeline {
         stage('Configure Git') {
             steps {
                 script {
+                    // Set git identity
                     bat """
                         git config --global user.email "jenkins@example.com"
                         git config --global user.name "Jenkins"
                     """
                     
-                    // This is the critical change - handle remote add differently
+                    // Simply add the remote (will fail if already exists)
                     bat """
-                        @echo off
-                        git remote add azure "%AZURE_GIT_REMOTE%" 2>nul || (
-                            echo "Remote already exists, updating URL"
-                            git remote set-url azure "%AZURE_GIT_REMOTE%"
-                        )
+                        git remote add azure "%AZURE_GIT_REMOTE%"
                     """
                     
+                    // Verify
                     bat 'git remote -v'
                 }
             }
@@ -60,9 +51,12 @@ pipeline {
 
         stage('Deploy to Azure') {
             steps {
-                bat """
-                    git push azure %GIT_BRANCH%:master --force
-                """
+                script {
+                    // Force push to Azure
+                    bat """
+                        git push azure %GIT_BRANCH%:master --force
+                    """
+                }
             }
         }
     }
@@ -70,15 +64,15 @@ pipeline {
     post {
         always {
             echo "Pipeline execution completed"
-            bat 'git remote -v'
         }
         failure {
             echo """
-            DEPLOYMENT FAILED! Check:
-            1. Azure credentials in Jenkins
-            2. Git remote URL: ${env.AZURE_GIT_REMOTE}
-            3. Branch name: ${env.GIT_BRANCH}
-            4. Workspace permissions
+            DEPLOYMENT FAILED! Possible solutions:
+            1. Manually clean workspace before running:
+               - Remove 'azure' remote if exists
+               - git remote rm azure
+            2. Check Azure permissions
+            3. Verify branch name ('${env.GIT_BRANCH}')
             """
         }
     }
