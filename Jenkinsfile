@@ -28,6 +28,9 @@ pipeline {
                         """,
                         returnStdout: true
                     ).trim()
+                    
+                    // Debug output
+                    echo "Azure Git Remote URL: ${env.AZURE_GIT_REMOTE}"
                 }
             }
         }
@@ -35,18 +38,24 @@ pipeline {
         stage('Configure Git Remote') {
             steps {
                 script {
-                    // Remove existing remote if it exists
+                    // List existing remotes (for debugging)
+                    bat "git remote -v"
+                    
+                    // Force remove any existing azure remote
                     bat """
                         @echo off
-                        git remote remove azure 2>nul || echo "No existing azure remote to remove"
-                        git remote remove azure 2>nul || echo "No existing azure remote to remove"
+                        git remote remove azure 2>nul || echo "No existing azure remote found"
+                        git remote remove azure 2>nul || echo "No existing azure remote found (second attempt)"
                     """
                     
-                    // Add the Azure remote
+                    // Add the Azure remote with the new URL
                     bat """
                         @echo off
                         git remote add azure "%AZURE_GIT_REMOTE%"
                     """
+                    
+                    // Verify the remote was added
+                    bat "git remote -v"
                     
                     // Configure git identity
                     bat """
@@ -84,11 +93,14 @@ pipeline {
 
     post {
         always {
-            // Clean up (optional)
+            // Clean up
             bat """
                 @echo off
                 git remote remove azure 2>nul || echo "Cleanup complete"
             """
+            
+            // Final verification
+            bat "git remote -v"
         }
         
         failure {
@@ -97,7 +109,12 @@ pipeline {
             1. Your branch name ('${env.GIT_BRANCH}')
             2. Azure deployment credentials
             3. Git remote URL ('${env.AZURE_GIT_REMOTE}')
+            4. Jenkins workspace permissions
             """
+            
+            // Additional debugging
+            bat "git remote -v"
+            bat "az --version"
         }
     }
 }
