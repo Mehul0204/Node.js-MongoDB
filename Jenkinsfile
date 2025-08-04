@@ -13,10 +13,7 @@ pipeline {
         stage('Prepare Git Deployment') {
             steps {
                 script {
-                    // First ensure we're in the workspace directory
-                    bat 'cd /d "%WORKSPACE%"'
-                    
-                    // Get the Azure Git remote URL properly
+                    // Get Azure Git remote URL
                     env.AZURE_GIT_REMOTE = bat(
                         script: """
                             @echo off
@@ -35,19 +32,25 @@ pipeline {
             }
         }
 
-        stage('Configure Git') {
+        stage('Configure Git Remote') {
             steps {
                 script {
+                    // Remove existing remote if it exists
+                    bat """
+                        @echo off
+                        git remote remove azure 2>nul || echo "No existing azure remote"
+                    """
+                    
+                    // Add the Azure remote
+                    bat """
+                        @echo off
+                        git remote add azure "%AZURE_GIT_REMOTE%"
+                    """
+                    
                     // Configure git identity
                     bat """
                         git config --global user.email "jenkins@example.com"
                         git config --global user.name "Jenkins"
-                    """
-                    
-                    // Add Azure remote (with proper escaping)
-                    bat """
-                        @echo off
-                        git remote add azure "%AZURE_GIT_REMOTE%"
                     """
                 }
             }
@@ -56,10 +59,22 @@ pipeline {
         stage('Deploy via Git') {
             steps {
                 script {
-                    // Push to Azure with proper branch mapping
+                    // Push to Azure with retry logic
                     bat """
                         @echo off
+                        set RETRY_COUNT=0
+                        :retry
                         git push azure %GIT_BRANCH%:master --force
+                        if %ERRORLEVEL% neq 0 (
+                            set /a RETRY_COUNT+=1
+                            if %RETRY_COUNT% leq 2 (
+                                echo Push failed, retrying in 10 seconds...
+                                timeout /t 10
+                                goto retry
+                            ) else (
+                                exit 1
+                            )
+                        )
                     """
                 }
             }
@@ -67,11 +82,21 @@ pipeline {
     }
 
     post {
+        always {
+            // Clean up (optional)
+            bat """
+                @echo off
+                git remote remove azure 2>nul || echo "Cleanup complete"
+            """
+        }
+        
         failure {
-            echo "Deployment failed. Check your:"
-            echo "1. Branch name ('${env.GIT_BRANCH}')"
-            echo "2. Azure remote URL ('${env.AZURE_GIT_REMOTE}')"
-            echo "3. Git credentials in Azure"
+            echo """
+            Deployment failed. Please check:
+            1. Your branch name ('${env.GIT_BRANCH}')
+            2. Azure deployment credentials
+            3. Git remote URL ('${env.AZURE_GIT_REMOTE}')
+            """
         }
     }
 }
