@@ -38,7 +38,8 @@ pipeline {
                     // Remove existing remote if it exists
                     bat """
                         @echo off
-                        git remote remove azure 2>nul || echo "No existing azure remote"
+                        git remote remove azure 2>nul || echo "No existing azure remote to remove"
+                        git remote remove azure 2>nul || echo "No existing azure remote to remove"
                     """
                     
                     // Add the Azure remote
