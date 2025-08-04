@@ -46,21 +46,7 @@ pipeline {
         stage('Configure Git Remote') {
             steps {
                 script {
-                    // List current remotes
-                    bat 'git remote -v'
-                    
-                    // Remove azure remote if exists (with error suppression)
-                    bat """
-                        @echo off
-                        git remote rm azure 2>nul
-                        if errorlevel 1 (
-                            echo No existing azure remote found
-                            exit 0
-                        ) else (
-                            echo Successfully removed existing azure remote
-                        )
-                    """
-                    
+ 
                     // Add new remote
                     bat """
                         @echo off
